@@ -249,10 +249,10 @@ export class ParticleSystem {
           -500,
           500
         )
-        .divideScalar(5000)
+        .divideScalar(10000)
         .add(originalOrigin)
       let dirToOrigin = origin.clone();
-      dirToOrigin.multiplyScalar(-0.0025);
+      dirToOrigin.multiplyScalar(-0.00125);
       origin.add(dirToOrigin);
       //origin.add(dirToOrigin.negate().multiplyScalar(-0.000001));
     } else {

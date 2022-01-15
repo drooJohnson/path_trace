@@ -46,12 +46,13 @@ let accumulationTarget;
 let debugTarget;
 
 function isWebGL2Available() {
-  try {
-    const canvas = document.createElement("canvas");
-    return !!(window.WebGL2RenderingContext && canvas.getContext("webgl2"));
-  } catch (e) {
-    return false;
-  }
+  return false
+  // try {
+  //   const canvas = document.createElement("canvas");
+  //   return !!(window.WebGL2RenderingContext && canvas.getContext("webgl2"));
+  // } catch (e) {
+  //   return false;
+  // }
 }
 
 function initTargets(width?: number, height?: number) {
