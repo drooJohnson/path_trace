@@ -16,8 +16,10 @@ var CONFIG = {
   OPACITY: 0.025,
   SIZE: 0.5,
   LOCK_RESOLUTION: false,
-  LOCK_WIDTH: 2048,
-  LOCK_HEIGHT: 2048,
+  LOCKED_RESOLUTION: {
+    x: 2048,
+    y: 2048,
+  },
   CAMERA_DISTANCE: 2.0,
   COLOR_A: { x: 0.5, y: 0.5, z: 0.5 },
   COLOR_B: { x: 0.5, y: 0.5, z: 0.5 },
@@ -43,14 +45,23 @@ const canvas = document.querySelector("canvas.webgl") as HTMLCanvasElement;
 let accumulationTarget;
 let debugTarget;
 
+function isWebGL2Available() {
+  try {
+    const canvas = document.createElement("canvas");
+    return !!(window.WebGL2RenderingContext && canvas.getContext("webgl2"));
+  } catch (e) {
+    return false;
+  }
+}
+
 function initTargets(width?: number, height?: number) {
   let _height;
   let _width;
 
   if (CONFIG.LOCK_RESOLUTION) {
-    if (CONFIG.LOCK_WIDTH && CONFIG.LOCK_HEIGHT) {
-      _width = CONFIG.LOCK_WIDTH;
-      _height = CONFIG.LOCK_HEIGHT;
+    if (CONFIG.LOCKED_RESOLUTION.x && CONFIG.LOCKED_RESOLUTION.y) {
+      _width = CONFIG.LOCKED_RESOLUTION.x;
+      _height = CONFIG.LOCKED_RESOLUTION.y;
     } else {
       console.log("Please specify custom resolution X and Y");
     }
@@ -65,21 +76,29 @@ function initTargets(width?: number, height?: number) {
   if (accumulationTarget) {
     accumulationTarget.setSize(_width, _height);
   } else {
-    accumulationTarget = new THREE.WebGLMultisampleRenderTarget(
-      _width,
-      _height,
-      {}
-    );
+    if (isWebGL2Available()) {
+      accumulationTarget = new THREE.WebGLMultisampleRenderTarget(
+        _width,
+        _height,
+        {}
+      );
 
-    accumulationTarget.samples = 8;
+      accumulationTarget.samples = 8;
+    } else {
+      accumulationTarget = new THREE.WebGLRenderTarget(_width, _height, {});
+    }
   }
 
   if (debugTarget) {
     debugTarget.setSize(_width, _height);
   } else {
-    debugTarget = new THREE.WebGLMultisampleRenderTarget(_width, _height, {});
+    if (isWebGL2Available()) {
+      debugTarget = new THREE.WebGLMultisampleRenderTarget(_width, _height, {});
 
-    debugTarget.samples = 0;
+      debugTarget.samples = 0;
+    } else {
+      debugTarget = new THREE.WebGLRenderTarget(_width, _height, {});
+    }
   }
 }
 
@@ -167,7 +186,11 @@ const sizes = {
 var windowWidth = window.innerWidth;
 var windowHeight = window.innerHeight;
 window.addEventListener("resize", () => {
-  if (CONFIG.LOCK_RESOLUTION && CONFIG.LOCK_WIDTH && CONFIG.LOCK_HEIGHT) {
+  if (
+    CONFIG.LOCK_RESOLUTION &&
+    CONFIG.LOCKED_RESOLUTION.x &&
+    CONFIG.LOCKED_RESOLUTION.y
+  ) {
     return;
   }
 
@@ -197,8 +220,13 @@ window.addEventListener("resize", () => {
 // Base camera
 
 let aspectRatio;
-if (CONFIG.LOCK_RESOLUTION && CONFIG.LOCK_WIDTH && CONFIG.LOCK_HEIGHT) {
-  aspectRatio = CONFIG.LOCK_WIDTH / CONFIG.LOCK_HEIGHT;
+if (
+  CONFIG.LOCK_RESOLUTION &&
+  CONFIG.LOCKED_RESOLUTION.x &&
+  CONFIG.LOCKED_RESOLUTION.y
+) {
+  aspectRatio =
+    CONFIG.LOCKED_RESOLUTION.x / CONFIG.LOCKED_RESOLUTION.y;
 } else {
   aspectRatio = sizes.width / sizes.height;
 }
@@ -248,14 +276,20 @@ function initRenderer() {
       antialias: true,
     });
     if (CONFIG.LOCK_RESOLUTION) {
-      if (CONFIG.LOCK_WIDTH && CONFIG.LOCK_HEIGHT) {
-        updateCameraAspect(CONFIG.LOCK_WIDTH, CONFIG.LOCK_HEIGHT);
-        canvas.width = CONFIG.LOCK_WIDTH;
-        canvas.height = CONFIG.LOCK_HEIGHT;
+      if (CONFIG.LOCKED_RESOLUTION.x && CONFIG.LOCKED_RESOLUTION.y) {
+        updateCameraAspect(
+          CONFIG.LOCKED_RESOLUTION.x,
+          CONFIG.LOCKED_RESOLUTION.y
+        );
+        canvas.width = CONFIG.LOCKED_RESOLUTION.x;
+        canvas.height = CONFIG.LOCKED_RESOLUTION.y;
         let body = document.querySelector("div.sizer") as HTMLElement;
-        body.style.width = CONFIG.LOCK_WIDTH + "px";
-        body.style.height = CONFIG.LOCK_HEIGHT + "px";
-        renderer.setSize(CONFIG.LOCK_WIDTH, CONFIG.LOCK_HEIGHT);
+        body.style.width = CONFIG.LOCKED_RESOLUTION.x + "px";
+        body.style.height = CONFIG.LOCKED_RESOLUTION.y + "px";
+        renderer.setSize(
+          CONFIG.LOCKED_RESOLUTION.x,
+          CONFIG.LOCKED_RESOLUTION.y
+        );
         initTargets();
       } else {
         console.log("Please specify custom resolution X and Y");
@@ -280,10 +314,14 @@ function rendererNeedsReinit() {
   var currentRendererSize = new THREE.Vector2();
   renderer.getSize(currentRendererSize);
 
-  if (CONFIG.LOCK_RESOLUTION && CONFIG.LOCK_WIDTH && CONFIG.LOCK_HEIGHT) {
+  if (
+    CONFIG.LOCK_RESOLUTION &&
+    CONFIG.LOCKED_RESOLUTION.x &&
+    CONFIG.LOCKED_RESOLUTION.y
+  ) {
     if (
-      currentRendererSize.width !== CONFIG.LOCK_WIDTH ||
-      currentRendererSize.height !== CONFIG.LOCK_HEIGHT
+      currentRendererSize.width !== CONFIG.LOCKED_RESOLUTION.x ||
+      currentRendererSize.height !== CONFIG.LOCKED_RESOLUTION.y
     ) {
       return true;
     } else {
@@ -423,7 +461,7 @@ const EXAMPLE_PARTICLE_DRIVER = (x, y, z) => {
 // };
 
 // const originPerturbation = (x,y,z) => {
-  
+
 // }
 
 const tick = () => {
@@ -446,7 +484,7 @@ const tick = () => {
   updateCamera();
 
   particleSystems.forEach((ps, index) => {
-    ps.update(0.001, CONFIG.USE_SMOOTH_PERTURB)//, originPerturbation);
+    ps.update(0.001, CONFIG.USE_SMOOTH_PERTURB); //, originPerturbation);
     // update each particleStream, then set its debug equivalent's color to the particleStream's color
     let newColor = new THREE.Color(
       ps.mesh.geometry.attributes.color.getX(0),
@@ -487,6 +525,29 @@ const colorConstraints = {
   b: { min: -1, max: 1 },
 };
 
+pane.addInput(CONFIG, "OPACITY", { min: 0.0001, max: 2.0, step: 0.0001 }).on("change", (ev) => {
+  particleSystems.forEach((ps) => {
+    ps.mesh.material.opacity = ev.value;
+  });
+});
+pane.addInput(CONFIG, "LOCK_RESOLUTION").on("change", (ev) => {
+  initRenderer();
+  initTargets();
+});
+pane.addInput(CONFIG, "LOCKED_RESOLUTION", {
+  x: {
+    min: 0,
+    max: 8192,
+  },
+  y: {
+    min: 0,
+    max: 8192,
+  },
+}).on("change", (ev) => {
+  initRenderer();
+  initTargets();
+});
+
 pane.addInput(CONFIG, "COLOR_A", colorConstraints);
 pane.addInput(CONFIG, "COLOR_B", colorConstraints);
 pane.addInput(CONFIG, "COLOR_C", colorConstraints);
@@ -498,7 +559,7 @@ pane.addInput(CONFIG, "SHOW_DEBUG").on("change", (ev) => {
     ps.material.opacity = ev.value ? 1 : 0;
   });
 });
-pane.addInput(CONFIG, "USE_SMOOTH_PERTURB")
+pane.addInput(CONFIG, "USE_SMOOTH_PERTURB");
 
 const buttons = {
   reset: function () {
